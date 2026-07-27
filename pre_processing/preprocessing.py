@@ -1,5 +1,8 @@
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
+from statsmodels.tools.tools import add_constant
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.regression.linear_model import OLS
 
 class VIFAndPValueSelector(BaseEstimator, TransformerMixin):
     def __init__(self, vif_threshold=5.0, p_threshold=0.05):
