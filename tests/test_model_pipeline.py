@@ -4,6 +4,7 @@ from src.model_pipeline import ModelPipeline
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 from sklearn.datasets import load_diabetes
 
+
 class TestModelPipeline(unittest.TestCase):
     """
     Class to test the ModelPipeline
@@ -17,9 +18,6 @@ class TestModelPipeline(unittest.TestCase):
         self.data.columns = load_diabetes()["feature_names"]
         self.target = pd.DataFrame(load_diabetes()["target"])
         self.target.columns = ["target"]
-        # test_data_path = "/".join(["tests", "test_data"])
-
-        # self.data = pd.read_csv(f"{test_data_path}/data.csv")
 
     def tearDown(self):
         print("Running tearDown method...")
@@ -32,5 +30,7 @@ class TestModelPipeline(unittest.TestCase):
         model_pipeline = ModelPipeline(self.data, self.target)
         model_pipeline.initial_model()
         self.assertIsInstance(model_pipeline.initial_model, RegressionResultsWrapper)
-        
-    
+
+
+if __name__ == "__main__":
+    unittest.main()
