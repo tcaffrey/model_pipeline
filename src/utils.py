@@ -6,7 +6,7 @@ from statsmodels.api import qqplot
 def detect_numerical_categorical_features(df: pd.DataFrame) -> tuple[list[str], list[str]]:
 
     """
-    Function to detect  the numerical and categorical features in a dataframe
+    Function to detect the numerical and categorical features in a dataframe
     
     Args:
         df (pd.DataFrame): The dataframe to detect features types
@@ -31,8 +31,18 @@ def detect_numerical_categorical_features(df: pd.DataFrame) -> tuple[list[str], 
         print(f"Type validation failed: {e}, returning None")
         return None, None
 
-def linearity_plots(fitted_values, residuals):
+def linearity_plots(fitted_values: pd.Series, residuals: pd.Series): 
     """
+    Function to produce a series of plots that help with detecting if data is 
+    displaying linear behaviour between features and target.
+    
+    Args:
+        fitted_values (pd.Series): The values from the fitted linear model
+        fitted_residuals (pd.Series): The residuals from the fitted linear model
+
+    Returns:
+        tuple: A tuple of the maplotlib figure and array of axes for the 
+        subplots.
     """
     # Check that fitted values and residuals are of 1-d array
 
