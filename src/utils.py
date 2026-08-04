@@ -2,6 +2,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.api import qqplot
+from sklearn.preprocessing import OneHotEncoder, TargetEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 
 
 def detect_numerical_categorical_features(
@@ -80,3 +84,75 @@ def linearity_plots(fitted_values: pd.Series, residuals: pd.Series):
     axes[1, 1].set_ylabel("Residuals")
 
     return fig, axes
+
+
+def adaptive_categorical_transformer(
+    df: pd.DataFrame,
+    regression_flag: bool,
+    categorical_features=list[str],
+    cardinality_threshold: int = 10,
+    cv: int = 5,
+):
+    """
+    Function to treat categorical features differently during preprocessing depending on the
+    cardinality of the data. OneHotEncoding and TargetEnconding will be applied depending
+    on if the caridnality is below or above a pre defined threshold.
+
+    Args:
+        df (pd.DataFrame): A pandas dataframe
+        regression_flag (str): bool: If set to true, target_type within TargetEncoder
+        will be explicitly set to 'continuous' to ensure correct encoding.
+        categorical_features: list[str]: A list of categorical features within the
+        dataset (df).
+        cardinality_threshold (str): A threshold to apply different encoding depending
+        on the cardinality of each categorical feature.
+        cv (int): Number of folds to use in cross validation during TargetEncoding
+    Returns:
+        Pipeline: A pipeline that preprocesses categorical data.
+    """
+    df_cat = df[categorical_features].copy()
+    low_card_cols, high_card_cols = [], []
+
+    for col in df_cat.columns:
+        if df_cat[col].nunique() <= cardinality_threshold:
+            low_card_cols.append(col)
+        else:
+            high_card_cols.append(col)
+
+    transformers = []
+    # Low Cardinality -> One Hot Encoding
+    if low_card_cols:
+        transformers.append(
+            (
+                "one_hot",
+                OneHotEncoder(
+                    sparse_output=False, handle_unknown="ignore", drop="if_binary"
+                ),
+                low_card_cols,
+            )
+        )
+
+    # High Cardinality -> Target Encoder
+    if regression_flag:
+        target_encoder = TargetEncoder(cv=cv, random_state=42, target_type="continuous")
+    else:
+        target_encoder = TargetEncoder(
+            cv=cv, random_state=42
+        )  # auto detect target type
+
+    if high_card_cols:
+        transformers.append(("target_enc", target_encoder, high_card_cols))
+
+    categorical_encoder = ColumnTransformer(transformers=transformers, remainder="drop")
+
+    categorical_pipeline = Pipeline(
+        [
+            (
+                "imputer",
+                SimpleImputer(strategy="most_frequent"),
+            ),
+            ("encoder", categorical_encoder),
+        ]
+    ).set_output(transform="pandas")
+
+    return categorical_pipeline
