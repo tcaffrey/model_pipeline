@@ -211,3 +211,7 @@ class TestUtils(unittest.TestCase):
         )
         # Ensure non-categorical columns were correctly dropped via the 'remainder' parameter
         self.assertNotIn("IgnoredCol", processed_df.columns)
+
+
+if __name__ == "__main__":
+    unittest.main()
