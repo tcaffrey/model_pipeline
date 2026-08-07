@@ -39,7 +39,7 @@ class TestUtils(unittest.TestCase):
             }
         )
         # Adding a missing value to test how functionality handles this.
-        self.target_enc_X.loc[0, "Priority"] = np.nan 
+        self.target_enc_X.loc[0, "Priority"] = np.nan
         self.categorical_features = ["Priority", "IDCode"]
         self.regression_flag = True
         self.X_ols = pd.Series([1, 2, 3, 4, 5], name="Feature")
@@ -47,8 +47,8 @@ class TestUtils(unittest.TestCase):
 
     def test_detect_numerical_categorical_features(self):
         """
-        Verify that the function correctly returns whether features in a 
-        dataset are numerical or categorical given different types of inputs.        
+        Verify that the function correctly returns whether features in a
+        dataset are numerical or categorical given different types of inputs.
         """
         input_1 = pd.DataFrame(
             {
@@ -80,8 +80,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual([actual_3_num, actual_3_cat], [expected_3_num, expected_3_cat])
         self.assertEqual([actual_4_num, actual_4_cat], [expected_4_num, expected_4_cat])
 
-    @patch('src.utils.OLS')
-    @patch('src.utils.add_constant')
+    @patch("src.utils.OLS")
+    @patch("src.utils.add_constant")
     def test_initial_model_execution_flow(self, mock_add_constant, mock_ols):
         """Verify that statsmodels functions are called with correctly."""
 
@@ -121,9 +121,7 @@ class TestUtils(unittest.TestCase):
         is fitted to an initial linear model to generated fitted values and residuals.
         """
         fitted_model = initial_model(self.data, self.target)
-        fig, ax = linearity_plots(
-            fitted_model.fittedvalues, fitted_model.resid
-        )
+        fig, ax = linearity_plots(fitted_model.fittedvalues, fitted_model.resid)
 
         self.assertIsInstance(fig, mfigure.Figure)
         self.assertIsInstance(ax[0, 0], maxes.Axes)

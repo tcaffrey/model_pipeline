@@ -41,22 +41,24 @@ def detect_numerical_categorical_features(
         print(f"Type validation failed: {e}, returning None")
         return None, None
 
+
 def initial_model(X: pd.Series, y: pd.Series):
     """
-    For basic checks of linearity and to produce accompanying plots, an 
-    Ordinary Least Square model is fitted to the data and target values 
-    provided. 
+    For basic checks of linearity and to produce accompanying plots, an
+    Ordinary Least Square model is fitted to the data and target values
+    provided.
 
     Args:
         X (pd.Series): The feature set to use for training the model
         y (pd.Series): The target to train the model on
-    
+
     Returns:
         tuple: A fitted OLS model.
     """
 
     X = add_constant(X)
     return OLS(y, X).fit()
+
 
 def linearity_plots(fitted_values: pd.Series, residuals: pd.Series):
     """
