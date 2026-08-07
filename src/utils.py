@@ -1,11 +1,13 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from statsmodels.api import qqplot
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
+from statsmodels.tools.tools import add_constant
+from statsmodels.regression.linear_model import OLS
+from statsmodels.api import qqplot
 
 
 def detect_numerical_categorical_features(
@@ -38,6 +40,24 @@ def detect_numerical_categorical_features(
     except TypeError as e:
         print(f"Type validation failed: {e}, returning None")
         return None, None
+
+
+def initial_model(X: pd.Series, y: pd.Series):
+    """
+    For basic checks of linearity and to produce accompanying plots, an
+    Ordinary Least Square model is fitted to the data and target values
+    provided.
+
+    Args:
+        X (pd.Series): The feature set to use for training the model
+        y (pd.Series): The target to train the model on
+
+    Returns:
+        tuple: A fitted OLS model.
+    """
+
+    X = add_constant(X)
+    return OLS(y, X).fit()
 
 
 def linearity_plots(fitted_values: pd.Series, residuals: pd.Series):
