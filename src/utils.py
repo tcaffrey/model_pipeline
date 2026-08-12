@@ -2,12 +2,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from statsmodels.tools.tools import add_constant
 from statsmodels.regression.linear_model import OLS
 from statsmodels.api import qqplot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 
 def detect_numerical_categorical_features(
@@ -176,3 +178,48 @@ def adaptive_categorical_transformer(
     ).set_output(transform="pandas")
 
     return categorical_pipeline
+
+
+class VIFSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, threshold=5.0):
+        self.threshold = threshold
+        self.keep_cols_ = None
+
+    def fit(self, X, y=None):
+        # Convert to DataFrame to track column names easily
+        df = pd.DataFrame(X)
+        cols = list(df.columns)
+
+        while True:
+            if len(cols) <= 1:
+                break
+            # Add constant intercept required for accurate VIF
+            X_with_const = add_constant(df[cols])
+
+            # Safely compute VIF for each feature
+            vifs = [
+                variance_inflation_factor(X_with_const.values, i)
+                for i in range(X_with_const.shape[1])
+            ]
+
+            # The first column is usually the constant, map VIF to feature names
+            vif_series = (
+                pd.Series(vifs[1:], index=X_with_const.columns[1:])
+                if "const" in X_with_const.columns
+                else pd.Series(vifs, index=X_with_const.columns)
+            )
+
+            max_vif = vif_series.max()
+
+            if max_vif > self.threshold:
+                max_col = vif_series.idxmax()
+                cols.remove(max_col)
+            else:
+                break
+
+        self.keep_cols_ = cols
+        return self
+
+    def transform(self, X):
+        df = pd.DataFrame(X)
+        return df[self.keep_cols_].values
