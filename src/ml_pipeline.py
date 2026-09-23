@@ -2,20 +2,22 @@ import pandas as pd
 from src.utils import (
     detect_numerical_categorical_features,
     adaptive_categorical_transformer,
+    load_pipeline_config,
 )
 from sklearn.base import is_classifier, is_regressor
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.linear_model import LinearRegression
 
 class MachineLearningPipeline:
 
-    def __init__(self, model_estimator):
+    def __init__(self, config: dict, model_estimator):
         self.model = self._validate_model(model_estimator)
         self.preprocessor = None
         self.is_fitted = False
+        self.config = config
 
     @staticmethod
     def _validate_model(estimator):
@@ -56,7 +58,7 @@ class MachineLearningPipeline:
 
         cat_transformer = adaptive_categorical_transformer(
             df,
-            regression_flag=True,
+            target_type=self.config['preprocessing'].get('target_type'),
             categorical_features=categorical_features,
             cardinality_threshold=10,
             cv=5,
@@ -69,7 +71,7 @@ class MachineLearningPipeline:
             ]
         )
 
-    def preprocess_data(self, df, is_training=True):
+    def preprocess_data(self, df, y, is_training=True):
         """
         Detect if features in dataset are numerical or categorical and pass these
         with the dataset to be processed by the appropriate component.
@@ -81,7 +83,7 @@ class MachineLearningPipeline:
 
         if is_training:
             self._build_preprocessor(df, numerical_features, categorical_features)
-            processed_features = self.preprocessor.fit_transform(df_preprocess)
+            processed_features = self.preprocessor.fit_transform(df_preprocess, y)
         else:
             if not self.is_fitted:
                 raise ValueError(
@@ -95,7 +97,7 @@ class MachineLearningPipeline:
         """
         Preprocesses the features and fits the underlying model.
         """
-        X_processed = self.preprocess_data(X, is_training=True)
+        X_processed = self.preprocess_data(X, y, is_training=True)
         self.model.fit(X_processed, y)
         self.is_fitted = True
         return self
@@ -104,5 +106,10 @@ class MachineLearningPipeline:
         """
         Preprocesses new data and returns model predictions.
         """
-        X_processed = self.preprocess_data(X, is_training=False)
+        X_processed = self.preprocess_data(X, y=None, is_training=False)
         return self.model.predict(X_processed)
+
+if __name__ == "__main__":
+    config_dict = load_pipeline_config("pipeline_config.yaml")
+    linear_model = LinearRegression()
+    MLPipeline = MachineLearningPipeline(config = config_dict, model_estimator = linear_model)
