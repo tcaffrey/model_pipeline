@@ -6,9 +6,13 @@ from src.utils import (
     adaptive_categorical_transformer,
     initial_model,
     VIFSelector,
+    load_pipeline_config,
 )
 import pandas as pd
 import numpy as np
+import tempfile
+import os
+import yaml
 from sklearn.datasets import load_diabetes
 import matplotlib.axes as maxes
 import matplotlib.figure as mfigure
@@ -138,7 +142,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         # Adding a missing value to test how functionality handles this.
         self.target_enc_X.loc[0, "Priority"] = np.nan
         self.categorical_features = ["Priority", "IDCode"]
-        self.regression_flag = True
+        self.target_type = "continuous"
 
     def test_target_enc_pipeline_structure_and_output_type(self):
         """
@@ -147,7 +151,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         """
         pipeline = adaptive_categorical_transformer(
             df=self.target_enc_X,
-            regression_flag=self.regression_flag,
+            target_type=self.target_type,
             categorical_features=self.categorical_features,
         )
 
@@ -167,7 +171,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         """
         pipeline = adaptive_categorical_transformer(
             df=self.target_enc_X,
-            regression_flag=self.regression_flag,
+            target_type=self.target_type,
             categorical_features=self.categorical_features,
             cardinality_threshold=10,
         )
@@ -198,7 +202,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         # Force threshold to be higher than any column cardinality
         pipeline = adaptive_categorical_transformer(
             df=self.target_enc_X,
-            regression_flag=self.regression_flag,
+            target_type=self.target_type,
             categorical_features=self.categorical_features,
             cardinality_threshold=100,
         )
@@ -218,7 +222,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         # Force threshold to be lower than any column cardinality
         pipeline = adaptive_categorical_transformer(
             df=self.target_enc_X,
-            regression_flag=self.regression_flag,
+            target_type=self.target_type,
             categorical_features=self.categorical_features,
             cardinality_threshold=1,
         )
@@ -237,7 +241,7 @@ class TestCategoricalEncoder(unittest.TestCase):
         """
         pipeline = adaptive_categorical_transformer(
             df=self.target_enc_X,
-            regression_flag=self.regression_flag,
+            target_type=self.target_type,
             categorical_features=self.categorical_features,
             cardinality_threshold=10,
             cv=None,
@@ -397,6 +401,77 @@ class TestVIFSelector(unittest.TestCase):
         with self.assertRaises((ValueError, MissingDataError)):
             selector.fit(X)
 
+class TestLoadPipelineConfig(unittest.TestCase):
+    """Encapsulates all assertions and scenarios for load_pipeline_config."""
+
+    def setUp(self):
+        """
+        Create a temporary directory before each test runs.
+        """
+        self.test_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        """
+        Clean up the temporary directory after each test finishes.
+        """
+        self.test_dir.cleanup()
+
+    def test_success(self):
+        config_path = os.path.join(self.test_dir.name, "test_config.yaml")
+        with open(config_path, "w") as f:
+            yaml.dump({"target_type": "continuous"}, f)
+            
+    def test_load_pipeline_config_success(self):
+        """Test that a valid YAML configuration file is correctly parsed into a dict."""
+        # Arrange
+        config_file_path = os.path.join(
+            self.test_dir.name, "pipeline_config.yaml"
+        )
+        yaml_content = {
+            "preprocessing": {
+                "numerical_strategy": "median",
+                "target_type": "continuous",
+            }
+        }
+
+        with open(config_file_path, "w") as f:
+            yaml.dump(yaml_content, f)
+
+        # Act
+        result = load_pipeline_config(config_file_path)
+
+        # Assert
+        self.assertIsInstance(result, dict)
+        self.assertEqual(
+            result["preprocessing"]["numerical_strategy"], "median"
+        )
+        self.assertEqual(result["preprocessing"]["target_type"], "continuous")
+
+    def test_load_pipeline_config_file_not_found(self):
+        """
+        Test that the function raises FileNotFoundError for missing files.
+        """
+        with self.assertRaises(FileNotFoundError):
+            load_pipeline_config("non_existent_directory/invalid_file.yaml")
+
+    def test_load_pipeline_config_invalid_yaml(self):
+        """
+        Test how the function handles a malformed, invalid YAML string.
+        """
+        config_file_path = os.path.join(
+            self.test_dir.name, "corrupted_config.yaml"
+        )
+        bad_yaml_syntax = """
+        preprocessing:
+          numerical_strategy: "median
+        categorical_strategy: [unclosed_brackets
+        """
+
+        with open(config_file_path, "w") as f:
+            f.write(bad_yaml_syntax)
+
+        with self.assertRaises(yaml.YAMLError):
+            load_pipeline_config(config_file_path)
 
 if __name__ == "__main__":
     unittest.main()

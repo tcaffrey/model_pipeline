@@ -1,4 +1,5 @@
 import pandas as pd
+import yaml
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
@@ -110,7 +111,7 @@ def linearity_plots(fitted_values: pd.Series, residuals: pd.Series):
 
 def adaptive_categorical_transformer(
     df: pd.DataFrame,
-    regression_flag: bool,
+    target_type: bool,
     categorical_features=list[str],
     cardinality_threshold: int = 10,
     cv: int = 5,
@@ -122,7 +123,7 @@ def adaptive_categorical_transformer(
 
     Args:
         df (pd.DataFrame): A pandas dataframe
-        regression_flag (str): bool: If set to true, target_type within TargetEncoder
+        target_type (str): bool: If equals continuous, target_type within TargetEncoder
         will be explicitly set to 'continuous' to ensure correct encoding.
         categorical_features: list[str]: A list of categorical features within the
         dataset (df).
@@ -155,11 +156,11 @@ def adaptive_categorical_transformer(
         )
 
     # High Cardinality -> Target Encoder
-    if regression_flag:
+    if target_type == "continuous":
         target_encoder = TargetEncoder(cv=cv, random_state=42, target_type="continuous")
     else:
         target_encoder = TargetEncoder(
-            cv=cv, random_state=42
+            smooth="auto", cv=cv, random_state=42
         )  # auto detect target type
 
     if high_card_cols:
@@ -181,11 +182,47 @@ def adaptive_categorical_transformer(
 
 
 class VIFSelector(BaseEstimator, TransformerMixin):
+    """
+    A Scikit-Learn compatible transformer for dropping highly collinear features using VIF.
+
+    Variance Inflation Factor (VIF) measures how much the variance of an estimated regression 
+    coefficient is increased because of collinearity. This transformer iteratively removes 
+    the feature with the highest VIF score until all remaining features fall below a 
+    specified threshold.
+
+    Parameters
+    ----------
+    threshold : float, default=5.0
+        The maximum allowable VIF score. Features with a VIF strictly greater than 
+        this value will be iteratively removed. Common thresholds are 5.0 or 10.0.
+
+    Attributes
+    ----------
+    keep_cols_ : list of str or list of int
+        The list of feature names (or column indices) that survived the VIF filtering 
+        process during the `.fit()` step.
+    """
+    
     def __init__(self, threshold=5.0):
         self.threshold = threshold
         self.keep_cols_ = None
 
     def fit(self, X, y=None):
+        """
+        Identify which features to retain by iteratively eliminating high-VIF columns.
+
+        Parameters
+        ----------
+        X : array-like or DataFrame of shape (n_samples, n_features)
+            The training data containing numerical features to analyse for multicollinearity.
+        y : Ignored
+            Not used, present here for API consistency by convention.
+
+        Returns
+        -------
+        self : object
+            Fitted estimator instance.
+        """
         # Convert to DataFrame to track column names easily
         df = pd.DataFrame(X)
         cols = list(df.columns)
@@ -221,5 +258,53 @@ class VIFSelector(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
+        """
+        Reduce the dataset to only include the features that passed the VIF threshold.
+
+        Parameters
+        ----------
+        X : array-like or DataFrame of shape (n_samples, n_features)
+            The data to transform.
+
+        Returns
+        -------
+        X_filtered : ndarray of shape (n_samples, n_selected_features)
+            The subset of the input array containing only the non-collinear features.
+        """
         df = pd.DataFrame(X)
         return df[self.keep_cols_].values
+
+def load_pipeline_config(config_path: str) -> dict:
+    """Reads and parses a YAML configuration file safely into a dictionary.
+
+    Parameters
+    ----------
+    config_path : str
+        The path to the YAML file on disk.
+
+    Returns
+    -------
+    config : dict
+        The parsed configuration dictionary.
+
+    Raises
+    ------
+    FileNotFoundError
+    If the file does not exist at the specified path.
+    yaml.YAMLError
+        If the file content contains invalid or corrupted YAML syntax.
+    """
+    with open(config_path, 'r') as file:
+        try:
+            config = yaml.safe_load(file)
+            
+            # Defensive check: if a file is blank or contains only comments, 
+            # safe_load returns None and returns an empty dict instead.
+            if config is None:
+                return {}
+                
+            return config
+            
+        except yaml.YAMLError as e:
+            # Re-raise the exception cleanly so tests can catches it
+            raise yaml.YAMLError(f"Failed to parse invalid YAML file at {config_path}: {e}")

@@ -5,6 +5,7 @@ from src.ml_pipeline import MachineLearningPipeline
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import LinearRegression
+from src.utils import load_pipeline_config
 
 
 class TestMachineLearningPipeline(unittest.TestCase):
@@ -20,6 +21,7 @@ class TestMachineLearningPipeline(unittest.TestCase):
         self.data.columns = load_diabetes()["feature_names"]
         self.target = pd.DataFrame(load_diabetes()["target"])
         self.target.columns = ["target"]
+        
 
     def setUp(self):
         """Runs before every individual test. Sets up fresh mock data and pipelines."""
@@ -39,7 +41,8 @@ class TestMachineLearningPipeline(unittest.TestCase):
 
         # Standard valid model
         self.valid_model = LinearRegression()
-        self.pipeline = MachineLearningPipeline(self.valid_model)
+        self.config_dict = load_pipeline_config("test_config.yaml")
+        self.pipeline = MachineLearningPipeline(config=self.config_dict, model_estimator=self.valid_model)
 
     def test_initialisation_with_valid_model(self):
         """
@@ -55,11 +58,11 @@ class TestMachineLearningPipeline(unittest.TestCase):
         """
         # Passing class instead of instance
         with self.assertRaises(TypeError):
-            MachineLearningPipeline(model_estimator=LinearRegression)
+            MachineLearningPipeline(config=self.config_dict, model_estimator=LinearRegression)
 
         # Passing an invalid data type string
         with self.assertRaises(TypeError):
-            MachineLearningPipeline(model_estimator="NotAModel")
+            MachineLearningPipeline(config=self.config_dict, model_estimator="NotAModel")
 
     def test_static_validation_method_directly(self):
         """
