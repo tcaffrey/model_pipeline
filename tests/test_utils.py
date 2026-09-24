@@ -422,8 +422,10 @@ class TestLoadPipelineConfig(unittest.TestCase):
             yaml.dump({"target_type": "continuous"}, f)
             
     def test_load_pipeline_config_success(self):
-        """Test that a valid YAML configuration file is correctly parsed into a dict."""
-        # Arrange
+        """
+        Test that a valid YAML configuration file is correctly parsed into a dict.
+        """
+
         config_file_path = os.path.join(
             self.test_dir.name, "pipeline_config.yaml"
         )
@@ -437,10 +439,8 @@ class TestLoadPipelineConfig(unittest.TestCase):
         with open(config_file_path, "w") as f:
             yaml.dump(yaml_content, f)
 
-        # Act
         result = load_pipeline_config(config_file_path)
 
-        # Assert
         self.assertIsInstance(result, dict)
         self.assertEqual(
             result["preprocessing"]["numerical_strategy"], "median"

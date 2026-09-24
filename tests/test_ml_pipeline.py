@@ -1,11 +1,14 @@
 import unittest
 import pandas as pd
 import numpy as np
+import importlib
+import math
 from src.ml_pipeline import MachineLearningPipeline
-from statsmodels.regression.linear_model import RegressionResultsWrapper
-from sklearn.datasets import load_diabetes
-from sklearn.linear_model import LinearRegression
 from src.utils import load_pipeline_config
+# from statsmodels.regression.linear_model import RegressionResultsWrapper
+# from sklearn.datasets import load_diabetes
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import GridSearchCV
 
 
 class TestMachineLearningPipeline(unittest.TestCase):
@@ -13,15 +16,14 @@ class TestMachineLearningPipeline(unittest.TestCase):
     Class to test the ModelPipeline
     """
 
-    def setUp(self):
-        """
-        Import input data within the unit test pre-redfined setUp
-        """
-        self.data = pd.DataFrame(load_diabetes()["data"])
-        self.data.columns = load_diabetes()["feature_names"]
-        self.target = pd.DataFrame(load_diabetes()["target"])
-        self.target.columns = ["target"]
-        
+    # def setUp(self):
+    #     """
+    #     Import input data within the unit test pre-redfined setUp
+    #     """
+    #     self.data = pd.DataFrame(load_diabetes()["data"])
+    #     self.data.columns = load_diabetes()["feature_names"]
+    #     self.target = pd.DataFrame(load_diabetes()["target"])
+    #     self.target.columns = ["target"]
 
     def setUp(self):
         """Runs before every individual test. Sets up fresh mock data and pipelines."""
@@ -42,7 +44,15 @@ class TestMachineLearningPipeline(unittest.TestCase):
         # Standard valid model
         self.valid_model = LinearRegression()
         self.config_dict = load_pipeline_config("test_config.yaml")
+        self.tune_one_model = self.config_dict["experiments"][0]["class"]
+
+        # Dynamically import the module (e.g., 'sklearn.ensemble') for testing grid search
+        imported_module = importlib.import_module(self.config_dict["experiments"][0]["module"])
+        # This follwoing line acts like 'from sklearn.ensemble import RandomForestRegressor'
+        model_class = getattr(imported_module, self.config_dict["experiments"][0]["class"])
+
         self.pipeline = MachineLearningPipeline(config=self.config_dict, model_estimator=self.valid_model)
+        self.one_model_pipeline = MachineLearningPipeline(config=self.config_dict, model_estimator=model_class())
 
     def test_initialisation_with_valid_model(self):
         """
@@ -98,6 +108,66 @@ class TestMachineLearningPipeline(unittest.TestCase):
         predictions = self.pipeline.predict(self.X_test)
         self.assertIsInstance(predictions, np.ndarray)
         self.assertEqual(len(predictions), len(self.X_test))
+
+    def test_tune_single_model(self):
+            """
+            Verify the method executes a real grid search and returns a valid, fitted result.
+            """
+
+            # Access the target param_grid from the first experiment
+            param_grid = self.config_dict["experiments"][0]["param_grid"]
+
+            # Run the optimisation pipeline with cv=2 for speed
+            grid_search_result = self.one_model_pipeline.tune_single_model(
+                param_grid=param_grid,
+                X_train=self.X_train,
+                y_train=self.y_train,
+                cv=2,
+                scoring='neg_mean_squared_error'
+            )
+
+            # Assert 1: The return value is actually a fitted GridSearchCV object
+            self.assertIsNotNone(grid_search_result)
+            self.assertTrue(hasattr(grid_search_result, "best_estimator_"))
+            self.assertTrue(hasattr(grid_search_result, "cv_results_"))
+
+            # Assert 2: Verify parameter mapping worked under the hood
+            self.assertIn('model__n_estimators', grid_search_result.cv_results_['params'][0])
+            self.assertIn('model__max_depth', grid_search_result.cv_results_['params'][0])
+
+            # Assert 3: Ensure the underlying pipeline can make real predictions
+            best_pipeline = grid_search_result.best_estimator_
+            predictions = best_pipeline.predict(self.X_train)
+            self.assertEqual(len(predictions), len(self.y_train))
+
+    def test_tune_single_model_empty_params(self):
+        """Verify the function handles an empty param_grid without crashing."""
+        blank_params = {}
+
+        # Act: Run the method with an empty parameter grid
+        result = self.one_model_pipeline.tune_single_model(
+            param_grid=blank_params,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            cv=2,
+            scoring='neg_mean_squared_error'
+        )
+
+        # Assert: It should still return a valid, fitted GridSearchCV object
+        self.assertIsInstance(result, GridSearchCV)
+        
+        # Verify the reformatted param_grid is empty
+        self.assertEqual(result.param_grid, {})
+
+        # Verify it still executed a single cross-validation run on default settings
+        self.assertTrue(hasattr(result, 'best_estimator_'))
+        self.assertTrue(hasattr(result, 'best_params_'))
+        self.assertEqual(result.best_params_, {})  # No custom params to report
+
+        # Verify the grid search completed successfully (it is a valid number, not NaN)
+        # and score is populated (not None)
+        self.assertTrue(math.isfinite(result.best_score_), "GridSearchCV returned NaN or infinite score.")
+        self.assertIsNotNone(result.best_score_)
 
 
 if __name__ == "__main__":
