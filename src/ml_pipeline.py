@@ -3,6 +3,7 @@ from src.utils import (
     detect_numerical_categorical_features,
     adaptive_categorical_transformer,
     load_pipeline_config,
+    VIFSelector,
 )
 from sklearn.base import is_classifier, is_regressor
 from sklearn.pipeline import Pipeline
@@ -10,11 +11,13 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import GridSearchCV
 
 class MachineLearningPipeline:
 
     def __init__(self, config: dict, model_estimator):
         self.model = self._validate_model(model_estimator)
+        self.VIFSelector = VIFSelector(threshold=5.0)
         self.preprocessor = None
         self.is_fitted = False
         self.config = config
@@ -43,7 +46,7 @@ class MachineLearningPipeline:
             )
         return estimator
 
-    def _build_preprocessor(self, df, numerical_features, categorical_features):
+    def _build_column_transformer(self, df, y, numerical_features, categorical_features):
         """
         Internal function to build Scikit-Learn preprocessing blocks for
         numerical and categorical data.
@@ -64,12 +67,14 @@ class MachineLearningPipeline:
             cv=5,
         )
 
-        self.preprocessor = ColumnTransformer(
+        column_transformer = ColumnTransformer(
             transformers=[
                 ("num", num_transformer, numerical_features),
                 ("cat", cat_transformer, categorical_features),
             ]
         )
+
+        return column_transformer
 
     def preprocess_data(self, df, y, is_training=True):
         """
@@ -82,7 +87,11 @@ class MachineLearningPipeline:
         )
 
         if is_training:
-            self._build_preprocessor(df, numerical_features, categorical_features)
+            column_transformer = self._build_column_transformer(df, y, numerical_features, categorical_features)
+            self.preprocessor = Pipeline([
+            ('column_transformer', column_transformer),   # Encodes and scales
+            ('vif_filter', VIFSelector(5.0)), # Filters multi-collinearity across all features 
+            ])            
             processed_features = self.preprocessor.fit_transform(df_preprocess, y)
         else:
             if not self.is_fitted:
@@ -108,6 +117,43 @@ class MachineLearningPipeline:
         """
         X_processed = self.preprocess_data(X, y=None, is_training=False)
         return self.model.predict(X_processed)
+
+    def tune_single_model(self, param_grid, X_train, y_train, cv=5, scoring='accuracy'):
+        """
+        Runs GridSearchCV for a single model object.
+        """
+        if self.model is None:
+            raise ValueError("Cannot tune model: self.model estimator is not initialized.")
+        
+        numerical_features, categorical_features = (
+            detect_numerical_categorical_features(X_train)
+        )
+
+        column_transformer = self._build_column_transformer(X_train, y_train, numerical_features, categorical_features)
+         
+        # 1. Dynamically build the pipeline
+        pipeline = Pipeline([
+            ('preprocessing', column_transformer),
+            ('vif_filter', VIFSelector(5.0)),
+            ('model', self.model)
+        ])
+        
+        # 2. Map raw keys to pipeline step syntax ('clf__parameter')
+        formatted_params = {f"model__{k}": v for k, v in param_grid.items()}
+        
+        # 3. Initialize and run GridSearch
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid=formatted_params,
+            cv=cv,
+            scoring=scoring,
+            error_score='raise',
+            n_jobs=-1
+        )
+        grid_search.fit(X_train, y_train)
+        
+        # Returns the completed GridSearchCV object containing results and the best estimator
+        return grid_search
 
 if __name__ == "__main__":
     config_dict = load_pipeline_config("pipeline_config.yaml")
