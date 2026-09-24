@@ -169,6 +169,23 @@ class TestMachineLearningPipeline(unittest.TestCase):
         self.assertTrue(math.isfinite(result.best_score_), "GridSearchCV returned NaN or infinite score.")
         self.assertIsNotNone(result.best_score_)
 
+    def test_tune_single_model_blank_estimator_raises_error(self):
+        """Verify that running the tuner without a valid model estimator raises an error."""
+        # 1. Arrange: Explicitly set the internal model estimator to None
+        self.one_model_pipeline.model = None
+        param_grid = self.config_dict["experiments"][0]["param_grid"]
+
+        # 2. Act & Assert: Verify that executing the function raises a TypeError or ValueError
+        # (Using a tuple allows the test to pass if scikit-learn raises either type)
+        with self.assertRaises((TypeError, ValueError)) as context:
+            self.one_model_pipeline.tune_single_model(
+                param_grid=param_grid,
+                X_train=self.X_train,
+                y_train=self.y_train,
+                cv=2,
+                scoring='accuracy'
+            )
+        self.assertIn("estimator", str(context.exception).lower())
 
 if __name__ == "__main__":
     unittest.main()

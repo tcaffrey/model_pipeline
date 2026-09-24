@@ -122,7 +122,9 @@ class MachineLearningPipeline:
         """
         Runs GridSearchCV for a single model object.
         """
-
+        if self.model is None:
+            raise ValueError("Cannot tune model: self.model estimator is not initialized.")
+        
         numerical_features, categorical_features = (
             detect_numerical_categorical_features(X_train)
         )
