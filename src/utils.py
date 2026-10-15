@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import yaml
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -156,6 +157,7 @@ def adaptive_categorical_transformer(
         )
 
     # High Cardinality -> Target Encoder
+    # Rare cases needs to be considered.
     if target_type == "continuous":
         target_encoder = TargetEncoder(cv=cv, random_state=42, target_type="continuous")
     else:
@@ -180,6 +182,39 @@ def adaptive_categorical_transformer(
 
     return categorical_pipeline
 
+class CorrelationFilter(BaseEstimator, TransformerMixin):
+    def __init__(self, threshold: float = 0.85):
+        """
+        Custom transformer to drop highly correlated features.
+        :param threshold: The correlation coefficient limit (between 0 and 1).
+        """
+        self.threshold = threshold
+        self.drop_columns_ = []  # Will hold columns to drop discovered during .fit()
+
+    def fit(self, X, y=None):
+        """Identifies highly correlated features based on the training data."""
+        # Ensure input is a pandas DataFrame to track column names easily
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+            
+        # Calculate absolute correlation matrix
+        corr_matrix = X.corr().abs()
+        
+        # Select upper triangle of correlation matrix (to avoid checking pairs twice)
+        upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        
+        # Find features with correlation greater than the threshold
+        self.drop_columns_ = [column for column in upper_tri.columns if any(upper_tri[column] > self.threshold)]
+        
+        return self
+
+    def transform(self, X):
+        """Drops the correlated features identified during fit."""
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+            
+        # Return data without the highly correlated columns
+        return X.drop(columns=self.drop_columns_)
 
 class VIFSelector(BaseEstimator, TransformerMixin):
     """

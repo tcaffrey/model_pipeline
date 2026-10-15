@@ -4,12 +4,13 @@ from src.utils import (
     adaptive_categorical_transformer,
     load_pipeline_config,
     VIFSelector,
+    CorrelationFilter,
 )
 from sklearn.base import is_classifier, is_regressor
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
 
@@ -21,6 +22,9 @@ class MachineLearningPipeline:
         self.preprocessor = None
         self.is_fitted = False
         self.config = config
+        self.target_type = self.config.get("target_type", "")
+        self.preprocessing_steps = self.config.get("preprocessing_pipeline", [])
+        self.candidates = self.config.get("model_candidates", [])
 
     @staticmethod
     def _validate_model(estimator):
@@ -51,26 +55,38 @@ class MachineLearningPipeline:
         Internal function to build Scikit-Learn preprocessing blocks for
         numerical and categorical data.
         """
+        numerical_transformer_steps = []
+        categorical_transformer = []
 
-        num_transformer = Pipeline(
-            steps=[
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler()),
-            ]
-        ).set_output(transform="pandas")
+        for step in self.preprocessing_steps:
+            name = step.get("name")
+            if not step.get("enabled", False):
+                continue
 
-        cat_transformer = adaptive_categorical_transformer(
-            df,
-            target_type=self.config['preprocessing'].get('target_type'),
-            categorical_features=categorical_features,
-            cardinality_threshold=10,
-            cv=5,
-        )
+            if name == "handle_missing_data":
+                strategy = step.get("params", {}).get("strategy", "mean")
+                numerical_transformer_steps.append((name, SimpleImputer(strategy=strategy)))
+
+            if name == "scale_features":
+                method = step.get("params", {}).get("method", "standard")
+                scaler = StandardScaler() if method == "standard" else MinMaxScaler()
+                numerical_transformer_steps.append((name, scaler))
+
+            if name == "categorical_encoding":
+                categorical_transformer = adaptive_categorical_transformer(
+                    df,
+                    target_type=self.target_type,
+                    categorical_features=categorical_features,
+                    cardinality_threshold=10,
+                    cv=5,
+                )
+
+        numerical_transformer = Pipeline(numerical_transformer_steps).set_output(transform="pandas")
 
         column_transformer = ColumnTransformer(
             transformers=[
-                ("num", num_transformer, numerical_features),
-                ("cat", cat_transformer, categorical_features),
+                ("num", numerical_transformer, numerical_features),
+                ("cat", categorical_transformer, categorical_features),
             ]
         )
 
@@ -82,16 +98,27 @@ class MachineLearningPipeline:
         with the dataset to be processed by the appropriate component.
         """
         df_preprocess = df.copy()
+        preprocessor_pipeline = []
+
         numerical_features, categorical_features = (
             detect_numerical_categorical_features(df_preprocess)
         )
+        column_transformer = self._build_column_transformer(df, y, numerical_features, categorical_features)
 
         if is_training:
-            column_transformer = self._build_column_transformer(df, y, numerical_features, categorical_features)
-            self.preprocessor = Pipeline([
-            ('column_transformer', column_transformer),   # Encodes and scales
-            ('vif_filter', VIFSelector(5.0)), # Filters multi-collinearity across all features 
-            ])            
+            preprocessor_pipeline.append(('column_transformer', column_transformer))
+            for step in self.preprocessing_steps:
+                name = step.get("name")
+                if not step.get("enabled", False):
+                    continue
+                if name == "remove_high_correlation":
+                    corr_threshold = step.get("params", {}).get("threshold", 0.85)
+                    preprocessor_pipeline.append((name, CorrelationFilter(threshold=corr_threshold)))
+                if name == "remove_high_mulitcollinearity":
+                    vif_threshold = step.get("params", {}).get("vif_threshold", 5.0)
+                    preprocessor_pipeline.append((name, VIFSelector(threshold=vif_threshold)))
+                        
+            self.preprocessor = Pipeline(preprocessor_pipeline)
             processed_features = self.preprocessor.fit_transform(df_preprocess, y)
         else:
             if not self.is_fitted:

@@ -7,6 +7,7 @@ from src.utils import (
     initial_model,
     VIFSelector,
     load_pipeline_config,
+    CorrelationFilter,
 )
 import pandas as pd
 import numpy as np
@@ -20,7 +21,8 @@ import matplotlib.pyplot as plt
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, TargetEncoder
+from sklearn.preprocessing import OneHotEncoder, TargetEncoder, StandardScaler
+from sklearn.linear_model import LinearRegression
 from statsmodels.tools.sm_exceptions import MissingDataError
 
 
@@ -472,6 +474,68 @@ class TestLoadPipelineConfig(unittest.TestCase):
 
         with self.assertRaises(yaml.YAMLError):
             load_pipeline_config(config_file_path)
+
+class TestCorrelationFilter(unittest.TestCase):
+
+    def setUp(self):
+        """Set up dummy data for reproducible testing."""
+        np.random.seed(42)
+        
+        # Feature 1 and Feature 2 will be perfectly correlated (r = 1.0)
+        # Feature 3 is random noise (low correlation)
+        self.f1 = np.random.rand(50)
+        self.f2 = self.f1.copy() 
+        self.f3 = np.random.rand(50)
+        
+        self.X = pd.DataFrame({
+            'Feature_1': self.f1,
+            'Feature_2': self.f2,
+            'Feature_3': self.f3
+        })
+        self.y = np.random.randint(0, 2, 50)
+
+    def test_correlation_removal_drops_highly_correlated(self):
+        """Verify that highly correlated features are successfully identified and dropped."""
+        remover = CorrelationFilter(threshold=0.85)
+        remover.fit(self.X)
+        
+        # Feature_2 should be flagged for removal because it is identical to Feature_1
+        self.assertIn('Feature_2', remover.drop_columns_)
+        self.assertNotIn('Feature_1', remover.drop_columns_)
+        
+        # Transform and ensure column count went down from 3 to 2
+        X_trans = remover.transform(self.X)
+        self.assertEqual(X_trans.shape[1], 2)
+        self.assertNotIn('Feature_2', X_trans.columns)
+
+    def test_high_threshold_preserves_features(self):
+        """Verify that a threshold above 1.0 skips removal."""
+        remover = CorrelationFilter(threshold=1.5)
+        remover.fit(self.X)
+        
+        # No features should cross a threshold > 1.0
+        self.assertEqual(len(remover.drop_columns_), 0)
+        
+        X_trans = remover.transform(self.X)
+        self.assertEqual(X_trans.shape[1], 3)
+
+    def test_pipeline_integration(self):
+        """Verify that the transformer integrates cleanly into a standard pipeline."""
+        pipeline = Pipeline([
+            ('corr_removal', CorrelationFilter(threshold=0.85)),
+            ('scaler', StandardScaler()),
+            ('classifier', LinearRegression())
+        ])
+        
+        # Test fitting the pipeline
+        try:
+            pipeline.fit(self.X, self.y)
+        except Exception as e:
+            self.fail(f"Pipeline fitting raised an unexpected exception: {e}")
+            
+        # Test predictions output shape/type
+        preds = pipeline.predict(self.X)
+        self.assertEqual(preds.shape[0], 50)
 
 if __name__ == "__main__":
     unittest.main()
