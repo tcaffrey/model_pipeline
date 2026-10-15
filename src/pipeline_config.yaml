@@ -1,0 +1,38 @@
+# pipeline_config.yaml
+
+target_type: "continuous" # Set to "continuous" for regression, or "binary"/"multiclass" for classification
+
+preprocessing_pipeline:
+  - name: "scale_features"
+    enabled: true
+    params:
+      method: "standard"
+  
+  - name: "handle_missing_data"
+    enabled: true
+    params:
+      strategy: "median"  # Options: mean, median, most_frequent, constant
+
+  - name: "remove_high_correlation"
+    enabled: true
+    params:
+      threshold: 0.85
+  
+  - name: "remove_high_mulitcollinearity"
+    enabled: true
+    params:
+      vif_threshold: 5.0
+
+  - name: "categorical_encoding"
+    enabled: true
+    params:
+      cardinality_threshold: 10
+      cv: 5
+
+model_candidates:
+  - model_name: "random_forest_regression"
+    module: "sklearn.ensemble"
+    class: "RandomForestRegressor"
+    param_grid:
+      model__n_estimators: [50, 100]
+      model__max_depth: [5, 10]
