@@ -44,12 +44,12 @@ class TestMachineLearningPipeline(unittest.TestCase):
         # Standard valid model
         self.valid_model = LinearRegression()
         self.config_dict = load_pipeline_config("test_config.yaml")
-        self.tune_one_model = self.config_dict["experiments"][0]["class"]
+        # self.tune_one_model = self.config_dict["experiments"][0]["class"]
 
         # Dynamically import the module (e.g., 'sklearn.ensemble') for testing grid search
-        imported_module = importlib.import_module(self.config_dict["experiments"][0]["module"])
+        imported_module = importlib.import_module(self.config_dict["model_candidates"][0]["module"])
         # This follwoing line acts like 'from sklearn.ensemble import RandomForestRegressor'
-        model_class = getattr(imported_module, self.config_dict["experiments"][0]["class"])
+        model_class = getattr(imported_module, self.config_dict["model_candidates"][0]["class"])
 
         self.pipeline = MachineLearningPipeline(config=self.config_dict, model_estimator=self.valid_model)
         self.one_model_pipeline = MachineLearningPipeline(config=self.config_dict, model_estimator=model_class())
@@ -100,7 +100,7 @@ class TestMachineLearningPipeline(unittest.TestCase):
         Verify the end-to-end flow executes and alters internal flags accurately.
         """
         returned_pipeline = self.pipeline.fit(self.X_train, self.y_train)
-
+        print(returned_pipeline)
         self.assertTrue(self.pipeline.is_fitted)
         self.assertIsNotNone(self.pipeline.preprocessor)
         self.assertEqual(returned_pipeline, self.pipeline)
@@ -115,7 +115,7 @@ class TestMachineLearningPipeline(unittest.TestCase):
             """
 
             # Access the target param_grid from the first experiment
-            param_grid = self.config_dict["experiments"][0]["param_grid"]
+            param_grid = self.config_dict["model_candidates"][0]["param_grid"]
 
             # Run the optimisation pipeline with cv=2 for speed
             grid_search_result = self.one_model_pipeline.tune_single_model(
@@ -173,7 +173,7 @@ class TestMachineLearningPipeline(unittest.TestCase):
         """Verify that running the tuner without a valid model estimator raises an error."""
         # 1. Arrange: Explicitly set the internal model estimator to None
         self.one_model_pipeline.model = None
-        param_grid = self.config_dict["experiments"][0]["param_grid"]
+        param_grid = self.config_dict["model_candidates"][0]["param_grid"]
 
         # 2. Act & Assert: Verify that executing the function raises a TypeError or ValueError
         # (Using a tuple allows the test to pass if scikit-learn raises either type)
