@@ -119,9 +119,6 @@ class MachineLearningPipeline:
                     preprocessor_pipeline.append((name, VIFSelector(threshold=vif_threshold)))
                         
             self.preprocessor = Pipeline(preprocessor_pipeline)
-            # ,   # Encodes and scale
-            # ('vif_filter', VIFSelector(5.0)), # Filters multi-collinearity across all features 
-            # ])            
             processed_features = self.preprocessor.fit_transform(df_preprocess, y)
         else:
             if not self.is_fitted:
