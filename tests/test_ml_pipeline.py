@@ -120,8 +120,8 @@ class TestMachineLearningPipeline(unittest.TestCase):
             # Run the optimisation pipeline with cv=2 for speed
             grid_search_result = self.one_model_pipeline.tune_single_model(
                 param_grid=param_grid,
-                X_train=self.X_train,
-                y_train=self.y_train,
+                X=self.X_train,
+                y=self.y_train,
                 cv=2,
                 scoring='neg_mean_squared_error'
             )
@@ -147,8 +147,8 @@ class TestMachineLearningPipeline(unittest.TestCase):
         # Act: Run the method with an empty parameter grid
         result = self.one_model_pipeline.tune_single_model(
             param_grid=blank_params,
-            X_train=self.X_train,
-            y_train=self.y_train,
+            X=self.X_train,
+            y=self.y_train,
             cv=2,
             scoring='neg_mean_squared_error'
         )
@@ -180,8 +180,8 @@ class TestMachineLearningPipeline(unittest.TestCase):
         with self.assertRaises((TypeError, ValueError)) as context:
             self.one_model_pipeline.tune_single_model(
                 param_grid=param_grid,
-                X_train=self.X_train,
-                y_train=self.y_train,
+                X=self.X_train,
+                y=self.y_train,
                 cv=2,
                 scoring='accuracy'
             )

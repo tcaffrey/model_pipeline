@@ -4,10 +4,11 @@ import yaml
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
+from sklearn.utils.validation import check_is_fitted
 from statsmodels.tools.tools import add_constant
 from statsmodels.regression.linear_model import OLS
 from statsmodels.api import qqplot
@@ -196,6 +197,11 @@ class CorrelationFilter(BaseEstimator, TransformerMixin):
         # Ensure input is a pandas DataFrame to track column names easily
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
+
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = X.columns
+        else:
+            self.feature_names_in_ = [f"x{i}" for i in range(X.shape[1])]
             
         # Calculate absolute correlation matrix
         corr_matrix = X.corr().abs()
@@ -210,11 +216,29 @@ class CorrelationFilter(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         """Drops the correlated features identified during fit."""
+        # Validation check before transforming
+        check_is_fitted(self, attributes=["drop_columns_"])
+        
         if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+            columns = getattr(self, "feature_names_in_", None)
+            X = pd.DataFrame(X, columns=columns)
             
-        # Return data without the highly correlated columns
         return X.drop(columns=self.drop_columns_)
+
+    def get_feature_names_out(self, input_features=None):
+        """
+        Returns the feature names that survive the correlation filter.
+        """
+        # Validation check before trying to output feature names
+        check_is_fitted(self, attributes=["drop_columns_"])
+        
+        if input_features is None:
+            input_features = self.feature_names_in_
+        else:
+            input_features = np.asarray(input_features, dtype=object)
+            
+        # Filter out any columns stored in the drop list
+        return np.array([f for f in input_features if f not in self.drop_columns_], dtype=object)
 
 class VIFSelector(BaseEstimator, TransformerMixin):
     """
@@ -343,3 +367,14 @@ def load_pipeline_config(config_path: str) -> dict:
         except yaml.YAMLError as e:
             # Re-raise the exception cleanly so tests can catches it
             raise yaml.YAMLError(f"Failed to parse invalid YAML file at {config_path}: {e}")
+
+def is_pipeline_empty(pipeline):
+    # 1. Check if the pipeline object itself has no steps defined
+    if not pipeline or not hasattr(pipeline, 'steps') or len(pipeline.steps) == 0:
+        return True
+    
+    # 2. Check if all individual steps are just placeholders ('passthrough' or None)
+    all_passthrough = all(
+        transformer in ('passthrough', None) 
+        for name, transformer in pipeline.steps
+    )
