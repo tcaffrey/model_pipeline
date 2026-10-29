@@ -19,8 +19,6 @@ class MachineLearningPipeline:
 
     def __init__(self, config: dict, model_estimator):
         self.model = self._validate_model(model_estimator)
-        # self.VIFSelector = VIFSelector(threshold=5.0)
-        # self.preprocessor = None
         self.is_fitted = False
         self.config = config
         self.target_type = self.config.get("target_type", "")
@@ -96,9 +94,6 @@ class MachineLearningPipeline:
         if categorical_pipeline_check:
             categorical_transformer = "passthrough"
 
-        print(categorical_pipeline_check)
-        print(categorical_transformer, categorical_features)
-
         column_transformer = ColumnTransformer(
             transformers=[
                 ("num", numerical_transformer, numerical_features),
@@ -132,15 +127,6 @@ class MachineLearningPipeline:
                     preprocessor_pipeline.append((name, VIFSelector(threshold=vif_threshold)))
                         
             return Pipeline(preprocessor_pipeline)
-            # processed_features = self.preprocessor.fit_transform(df_preprocess, y)
-        # else:
-        #     if not self.is_fitted:
-        #         raise ValueError(
-        #             "Pipeline must be fitted before preprocessing test data."
-        #         )
-        #     processed_features = self.preprocessor.transform(df_preprocess)
-
-        # return processed_features
 
     def fit(self, X, y):
         """
@@ -156,7 +142,6 @@ class MachineLearningPipeline:
         """
         Preprocesses new data and returns model predictions.
         """
-        # X_processed = self.preprocess_data(X, y=None, is_training=False)
         if not self.is_fitted:
             raise ValueError(
                 "Pipeline must be fitted before preprocessing test data."
@@ -171,26 +156,13 @@ class MachineLearningPipeline:
         if self.model is None:
             raise ValueError("Cannot tune model: self.model estimator is not initialized.")
         
-        # numerical_features, categorical_features = (
-        #     detect_numerical_categorical_features(X_train)
-        # )
-
-        # column_transformer = self._build_column_transformer(X_train, y_train, numerical_features, categorical_features)
         pipeline = self._build_preprocessor(X, y, is_training=True)
-        # pipeline = Pipeline(self.preprocessor)
         pipeline.steps.append(("model", self.model))
-         
-        # 1. Dynamically build the pipeline
-        # pipeline = Pipeline([
-        #     ('preprocessing', column_transformer),
-        #     ('vif_filter', VIFSelector(5.0)),
-        #     ('model', self.model)
-        # ])
         
-        # 2. Map raw keys to pipeline step syntax ('clf__parameter')
+        # Map raw keys to pipeline step syntax ('clf__parameter')
         formatted_params = {f"model__{k}": v for k, v in param_grid.items()}
         
-        # 3. Initialize and run GridSearch
+        # Initialize and run GridSearch
         grid_search = GridSearchCV(
             estimator=pipeline,
             param_grid=formatted_params,
