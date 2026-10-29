@@ -216,13 +216,7 @@ class CorrelationFilter(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         """Drops the correlated features identified during fit."""
-        # if not isinstance(X, pd.DataFrame):
-        #     X = pd.DataFrame(X)
-            
-        # # Return data without the highly correlated columns
-        # return X.drop(columns=self.drop_columns_)
-
-        # 1. Validation check before transforming
+        # Validation check before transforming
         check_is_fitted(self, attributes=["drop_columns_"])
         
         if not isinstance(X, pd.DataFrame):
