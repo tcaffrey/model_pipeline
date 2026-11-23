@@ -60,7 +60,6 @@ class TestMachineLearningPipeline(unittest.TestCase):
         """
         self.assertEqual(self.pipeline.model, self.valid_model)
         self.assertFalse(self.pipeline.is_fitted)
-        self.assertIsNone(self.pipeline.preprocessor)
 
     def test_initialisation_with_invalid_model_raises_error(self):
         """

@@ -92,7 +92,7 @@ class MachineLearningPipeline:
         if numerical_pipeline_check:
             numerical_transformer = "passthrough"
         if categorical_pipeline_check:
-            categorical_transformer = "passthrough"
+            categorical_transformer = "drop"
 
         column_transformer = ColumnTransformer(
             transformers=[
